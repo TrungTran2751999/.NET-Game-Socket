@@ -9,6 +9,10 @@ using System.Net;
 using System.Net.WebSockets;
 using System.Net.Sockets;
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.VisualBasic;
+using System.Text.Json.Serialization;
+using System.Text.Json;
+using Microsoft.EntityFrameworkCore.Query.Internal;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -47,6 +51,7 @@ builder.Services.AddAuthentication(item =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IStudentService, StudentService>();
 builder.Services.AddScoped<ISocketService, SocketService>();
+builder.Services.AddScoped<IUtilService, UtilService>();
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
@@ -90,21 +95,40 @@ app.UseAuthorization();
 app.UseWebSockets(new WebSocketOptions{
     KeepAliveInterval = TimeSpan.FromSeconds(1)
 });
-var connections = new List<WebSocket>();
+var connections = new List<SocketInfo>();
 app.Map("/ws", async context =>{
     if(context.WebSockets.IsWebSocketRequest){
+        var socketInfo = new SocketInfo();
         using var ws = await context.WebSockets.AcceptWebSocketAsync();
-        connections.Add(ws);
+        socketInfo.WebSocket = ws;
+        connections.Add(socketInfo);
         //await BroadCast("joineddd okok");
         await ReceiMessage(ws, 
             async (result, buffer)=>{
                 if(result.MessageType == WebSocketMessageType.Text){
                     string message = Encoding.UTF8.GetString(buffer, 0, result.Count);
+                    var player = new Player();
+                    try{
+                        player = JsonSerializer.Deserialize<Player>(message);
+                    }catch{
+
+                    }
+                    if(player?.Status == StatusPlayer.Thamgia){
+                        socketInfo.IdPhong = player.IdPhong;
+                        socketInfo.IdPlayer = player.Id;
+                        socketInfo.ViTri = player.ViTri;
+                    }
                     await BroadCast(message);
                 }else if(result.MessageType==WebSocketMessageType.Close || ws.State==WebSocketState.Aborted){
-                    connections.Remove(ws);
-                    await BroadCast("left room");
-                    await BroadCast($@"{connections.Count} is connecting");
+                    var player = new Player{
+                        Id = socketInfo.IdPlayer,
+                        IdPhong = socketInfo.IdPhong,
+                        Status = StatusPlayer.Thoat
+                    };
+                    var message = JsonSerializer.Serialize(player);
+                    await BroadCast(message);
+                    connections.Remove(socketInfo);
+                    UtilService.XoaPhong(socketInfo.IdPhong);
                     await ws.CloseAsync(result.CloseStatus.Value, result.CloseStatusDescription, CancellationToken.None);
                 }
             }
@@ -116,11 +140,19 @@ app.Map("/ws", async context =>{
 
 async Task BroadCast(string message){
     var bytes = Encoding.UTF8.GetBytes(message);
-    foreach(var socket in connections){
-        if(socket.State==WebSocketState.Open){
-            var arraySegment = new ArraySegment<byte>(bytes, 0, bytes.Length) ;
-            await socket.SendAsync(arraySegment, 
-            WebSocketMessageType.Text, true, CancellationToken.None);
+    var player = JsonSerializer.Deserialize<Player>(message);
+    var listSocketCungPhong = new List<SocketInfo>();
+    var listPhong = SocketService.listPhong;
+    foreach(var phong in listPhong){
+        if(phong.IdPhong==player?.IdPhong){
+            foreach(var socket in connections){
+                if(socket.IdPhong==player?.IdPhong && socket.WebSocket?.State==WebSocketState.Open){
+                     var arraySegment = new ArraySegment<byte>(bytes, 0, bytes.Length) ;
+                        await socket.WebSocket.SendAsync(arraySegment, 
+                        WebSocketMessageType.Text, true, CancellationToken.None);
+                }
+            }
+            break;
         }
     }
  }

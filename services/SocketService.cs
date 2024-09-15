@@ -8,11 +8,15 @@ using Microsoft.Extensions.Caching.Memory;
 public class SocketService:ISocketService
 {
     private readonly IMemoryCache _memoryCache;
-    public SocketService(IMemoryCache memoryCache){
+    private readonly IUtilService utilService;
+    public static List<Phong> listPhong = new List<Phong>();
+
+    public SocketService(IMemoryCache memoryCache, IUtilService utilService){
         this._memoryCache = memoryCache;
+        this.utilService = utilService;
     }
     public Phong TimPhong(Player player){
-        var listPhong = (List<Phong>)UtilService.GetCachingData(_memoryCache, "room");
+        var listPhong = (List<Phong>)utilService.GetCachingData("room") ; 
         if(listPhong!=null){
             foreach(var phong in listPhong){
                 if(phong.ListPlayer?.Count < 4 ){
@@ -27,6 +31,7 @@ public class SocketService:ISocketService
                 ListPlayer = new List<Player>(),
             };
             listPhong.Add(newPhong);
+            SocketService.listPhong = listPhong;
             return newPhong;
         }else{
             //khoi tao khi la nguoi choi dau tien choi phong dau tien
@@ -37,7 +42,8 @@ public class SocketService:ISocketService
             };
             newPhong.ListPlayer.Add(player);
             listPhong.Add(newPhong);
-            UtilService.SetCachingData(_memoryCache, newPhong, "room");
+            SocketService.listPhong = listPhong;
+            utilService.SetCachingData(listPhong, "room");
             return newPhong;
         }
     }

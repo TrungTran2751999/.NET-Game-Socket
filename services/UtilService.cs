@@ -5,19 +5,29 @@ using app.Controllers;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 
-public class UtilService
+public class UtilService:IUtilService
 {
-    public static void SetCachingData(IMemoryCache cache, object data, string cacheKey){
+    private readonly IMemoryCache cache;
+    public UtilService(IMemoryCache cache){
+        this.cache = cache;
+    }
+    public void SetCachingData(object data, string cacheKey){
         var cacheEntryOptions = new MemoryCacheEntryOptions()
-                .SetSlidingExpiration(TimeSpan.FromMinutes(5)); // Thời gian hết hạn 5 phút
+                .SetSlidingExpiration(TimeSpan.FromMinutes(500)); // Thời gian hết hạn 500 phút
 
         cache.Set(cacheKey, data, cacheEntryOptions);
     }
-    public static object GetCachingData(IMemoryCache cache, string cacheKey){
-        if (cache.TryGetValue(cacheKey, out string cachedData))
+    public object GetCachingData(string cacheKey){
+        if (cache.TryGetValue(cacheKey, out object cachedData))
         {
             return cachedData;
         }
         return null;
+    }
+    public static void XoaPhong(string idPhong){
+        var phongDeXoa = SocketService.listPhong.Where(x=>x.IdPhong==idPhong && x.ListPlayer?.Count==0).FirstOrDefault();
+        if(phongDeXoa!=null){
+            SocketService.listPhong.Remove(phongDeXoa);
+        }
     }
 }
