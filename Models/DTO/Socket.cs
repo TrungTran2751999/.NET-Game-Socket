@@ -13,6 +13,7 @@ public class Player{
     public double GocXoay{get;set;}
     public int SoDiem{get;set;}
     public StatusPlayer Status{get;set;}
+    public int CapSung{get;set;}
 }
 public enum StatusPlayer{
     
